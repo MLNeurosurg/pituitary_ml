@@ -284,7 +284,6 @@ log_reg_DI = glm(DVTorPE~., data = dvt_df, family = 'binomial')
 summary(log_reg_DI)
 exp(cbind(OR = coef(log_reg_DI), confint(log_reg_DI)))
 
-
 ######### Biulding machine learning algorithms
 ## Train/Test split correcting for class imbalance
 # Developing balanced testing set 
