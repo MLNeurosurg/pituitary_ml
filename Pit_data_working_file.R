@@ -19,7 +19,7 @@ library(corrplot)
 library(PRROC) 
 library(ROCR)
 
-setwd("~/Desktop/PituitaryResearch/")
+setwd("~/Desktop/pituitary_ml/pituitary_data")
 # Janitor work, tidy data for dataframe, predictors
 Pituitarydb = read_excel("Pituitary_Outcomes_Study_Datasheets.xlsx", sheet = 3)
 Pituitarydbcoledit = trimws(colnames(Pituitarydb))
@@ -182,8 +182,6 @@ ggplot(outcome_df, aes(x = TumorType, y = BMI, col = TumorType)) +
   stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1),
                geom = "errorbar", width = 0.3, col = "black", alpha = 0.8)
 
-
-
 ##########################Machine Learning 
 # Define helper functions
 change_levels = function(x){
@@ -259,7 +257,6 @@ ggplot(temp_df, aes(x = agevector, y = PostopNahighest, col = as.factor(Diabetes
 
 mean(Pituitarydb[Pituitarydb$DiabetesInsipidus == 1,]$agevector, trim = 0.05)
 mean(Pituitarydb[Pituitarydb$DiabetesInsipidus != 1,]$agevector, trim = 0.05)
-
 
 # HYPONATREMIA, multivariate analysis
 hyponat_df = select(Pituitarydb, Hyponatremia, agevector, Obesity, TumorType)
