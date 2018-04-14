@@ -36,6 +36,7 @@ Pituitarydb$TumorType[Pituitarydb$TumorType == "prolactinoma"] = "Prolactinoma"
 Pituitarydb = Pituitarydb[,-1]
 
 # Add age column
+
 date = Pituitarydb$DateofOperation
 born = Pituitarydb$DateofBirth
 age = function(date, born){
@@ -343,6 +344,14 @@ test_accuracy_values = accuracy_function(model_list, test_outcome_one)
 
 #######Mcnemar tests for statistically significantly different models
 prediction_df = data.frame(pit_nb_pred, pit_svm_pred, pit_rf_pred, pit_glm_pred)
+pvalue_rescaling = function(x) {
+  if (x > 0.05 | is.na(x)) {
+    return(0)
+  } else {
+    return(log(1/x))
+  }
+}
+
 pairwise_mcnemar = function(prediction_df){
   paired_mcnemar = c()
   for (col1 in prediction_df){
@@ -351,11 +360,12 @@ pairwise_mcnemar = function(prediction_df){
       paired_mcnemar = c(paired_mcnemar, pval)
     }
   }
-  paired_mcnemar <- matrix(paired_mcnemar, nrow = 4, byrow = TRUE)
+  paired_rescaled = map_dbl(paired_mcnemar, pvalue_rescaling)
+  paired_mcnemar <- matrix(paired_rescaled, nrow = 4, byrow = TRUE)
   return(paired_mcnemar)
 }
-pvals_mcnemar = pairwise_mcnemar(prediction_df)
-image(pvals_mcnemar, col=viridis(256))
+test = pairwise_mcnemar(prediction_df)
+image(test, col=viridis(256))
 
 ###### Correlation of predictions among models
 one_zero = function(x){
@@ -365,7 +375,6 @@ one_zero = function(x){
     return(0)
   }
 }
-
 prediction_df$pit_nb_pred = as.numeric(map(prediction_df$pit_nb_pred, one_zero))
 prediction_df$pit_svm_pred = as.numeric(map(prediction_df$pit_svm_pred, one_zero))
 prediction_df$pit_rf_pred = as.numeric(map(prediction_df$pit_rf_pred, one_zero))
