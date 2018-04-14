@@ -20,7 +20,7 @@ library(PRROC)
 library(ROCR)
 
 setwd("~/Desktop/pituitary_ml/pituitary_data")
-# Janitor work, tidy data for dataframe, predictors
+# Tidy data for dataframe, predictors
 Pituitarydb = read_excel("Pituitary_Outcomes_Study_Datasheets.xlsx", sheet = 3)
 Pituitarydbcoledit = trimws(colnames(Pituitarydb))
 Pituitarydbcoledit = make.names(colnames(Pituitarydb))
@@ -35,8 +35,7 @@ Pituitarydb$TumorType[Pituitarydb$TumorType == "Nonsecreting"] = "Nonfunctioning
 Pituitarydb$TumorType[Pituitarydb$TumorType == "prolactinoma"] = "Prolactinoma" 
 Pituitarydb = Pituitarydb[,-1]
 
-# Add age column
-
+# Generate age vector
 date = Pituitarydb$DateofOperation
 born = Pituitarydb$DateofBirth
 age = function(date, born){
@@ -45,15 +44,16 @@ age = function(date, born){
 agevector = mapply(age, date, born)
 Pituitarydb = data.frame(Pituitarydb, as.data.frame(agevector))
 
-# defining the relevant tumortype vectors for odds ratios
+# Defining the relevant tumor type vectors for odds ratios
 cushingvector = as.numeric(Pituitarydb$TumorType == "Cushing's")
 acromegalyvector = as.numeric(Pituitarydb$TumorType == "Acromegaly")
 nonfunctioningvector = as.numeric(Pituitarydb$TumorType == "Nonfunctioning")
 prolactinomavector = as.numeric(Pituitarydb$TumorType == "Prolactinoma")
 tshomevector = as.numeric(Pituitarydb$TumorType == "TSHoma")
+# Assert preserved the full dataset
 sum(c(cushingvector, acromegalyvector, nonfunctioningvector, prolactinomavector, tshomevector)) == 400
 
-#################Constucting features, target variables 1 (inpatient morbidity) and 2 (outcome-day morbidity)
+#################Selecting features, target variables
 feature_select = select(Pituitarydb,
                         # Demographics
                         TumorType, 
@@ -89,10 +89,10 @@ feature_select = select(Pituitarydb,
                         DesmopressinRequired)
 
 
-### Define Outcome vector
+# Define outcome vector
 outcome_day_vector = transmute(Pituitarydb, outcomes = Day30mortality + Day30readmission  + Day30EDvisits +
                                 Stroke + DVTorPE + SevereArrhythmia + RespiratoryFailure + CSFLeak + TensionPneumocephalus + IntracranialInfection)
-### Define the Greater than expected length of stay vector
+### Define the greater than expected length of stay outcome
 lengthofstay = function(tumor, los) {
   if (tumor == "Cushing's" && los > 5) {
     return(1)
@@ -115,7 +115,7 @@ outcome_binary = ifelse(summed_outcome > 0, 1, 0)
 # Concatenate features and outcomes to final dataframe
 outcome_df = data.frame(feature_select, outcome_binary)
 
-# Outcome tallied by category
+# Outcome tallied by category for descriptive statistics and data visualization
 outcome_tally = select(Pituitarydb, DVTorPE, MI, SevereArrhythmia, RespiratoryFailure, Stroke,
                        CSFLeak, TensionPneumocephalus, IntracranialInfection,
                        Day30readmission,  Day30EDvisits, Day30mortality)
@@ -123,16 +123,7 @@ outcome_tally = data.frame(outcome_tally, LOS_binary)
 colnames(outcome_tally) = c("DVTorPE", "MI", "Arrhythmia", "Resp. failure", "Stroke", "CSF leak",
                             "Sympt. pneumocephalus", "Meningitis", "Readmission", "ED readmission", "Death", "Ext. LOS")
 
-outcome_tally_gather = gather(outcome_tally)
-ggplot(outcome_tally_gather, aes(x = reorder(key, value), y=value)) + 
-  geom_histogram(stat='identity') + 
-  xlab("") + 
-  ylab("") +
-  # theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  theme(text = element_text(size=14)) +
-  scale_y_continuous(breaks=seq(0,70,5)) +
-  coord_flip()
-  
+outcome_tally_gather = gather(outcome_tally)  
 ggplot(outcome_tally_gather, aes(x = reorder(key, value), y=value)) + 
   geom_histogram(stat='identity') + 
   xlab("") + 
@@ -183,7 +174,7 @@ ggplot(outcome_df, aes(x = TumorType, y = BMI, col = TumorType)) +
   stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1),
                geom = "errorbar", width = 0.3, col = "black", alpha = 0.8)
 
-##########################Machine Learning 
+##########################
 # Define helper functions
 change_levels = function(x){
   if (x == 0){
@@ -231,7 +222,7 @@ outcome_df$outcome = as.factor(outcome_df$outcome)
 colnames(outcome_df) = col_name_list
 
 ########## Multivariate analysis of postoperative conditions
-# DIABETES INSIPIDUS, Multivariate analysis
+# DIABETES INSIPIDUS, multivariate analysis
 DI_df = cbind(select(Pituitarydb, agevector, Macroadenoma, DiabetesInsipidus), cushingvector)
 DI_df$Macroadenoma = ifelse(DI_df$Macroadenoma == 1, 0, 1) # flips to microadenomas for easier analysis
 DI_df$agevector = ifelse(DI_df$agevector > 40, 1, 0)
@@ -239,22 +230,13 @@ log_reg_DI = glm(DiabetesInsipidus~., data = DI_df, family = 'binomial')
 summary(log_reg_DI)
 exp(cbind(OR = coef(log_reg_DI), confint(log_reg_DI)))
 
-DI_df = cbind(select(Pituitarydb, agevector, Macroadenoma, DiabetesInsipidus), cushingvector)
-ggplot(Pituitarydb, aes(x = as.factor(DiabetesInsipidus), y = agevector, col = as.factor(DiabetesInsipidus))) + 
-  geom_jitter(position = posn.j, alpha = 0.3) +
-  xlab("Diabetes Insipidus") +
-  ylab("Age") +
-  scale_y_continuous(breaks = c(seq(10, 100, 5))) +
-  stat_summary(fun.y = mean, geom = "point", col = "black", alpha = 0.8) +
-  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1),
-               geom = "errorbar", width = 0.3, col = "black", alpha = 0.8)
+# Scatter plot
+ggplot(Pituitarydb[Pituitarydb$PostopNahighest > 130,], aes(x = agevector, y = PostopNahighest, col = as.factor(DiabetesInsipidus), size = as.factor(DesmopressinRequired))) +
+  geom_jitter(alpha = 0.75)
+
 # Density plot
 ggplot(Pituitarydb, aes(x = agevector, fill = as.factor(DiabetesInsipidus))) + 
   geom_density()
-
-temp_df = Pituitarydb[Pituitarydb$PostopNahighest > 130,]
-ggplot(temp_df, aes(x = agevector, y = PostopNahighest, col = as.factor(DiabetesInsipidus), size = as.factor(DesmopressinRequired))) +
-  geom_jitter(alpha = 0.75) # Be sure to include the trimmed mean for this figure
 
 mean(Pituitarydb[Pituitarydb$DiabetesInsipidus == 1,]$agevector, trim = 0.05)
 mean(Pituitarydb[Pituitarydb$DiabetesInsipidus != 1,]$agevector, trim = 0.05)
@@ -269,20 +251,19 @@ exp(cbind(OR = coef(log_reg_hyponat), confint(log_reg_hyponat)))
 ggplot(Pituitarydb, aes(x = agevector, y = PostopNalowest, col = as.factor(Hyponatremia))) +
   geom_jitter(alpha = 0.75)
 
-pit_bmi_trim = Pituitarydb[Pituitarydb$BMI < 50,]
-ggplot(pit_bmi_trim, aes(x = BMI, fill = as.factor(Hyponatremia))) + 
+ggplot(Pituitarydb[Pituitarydb$BMI < 50,], aes(x = BMI, fill = as.factor(Hyponatremia))) + 
   geom_density(alpha = 0.5)
+
 mean(Pituitarydb[Pituitarydb$Obesity == 1,]$PostopNalowest, trim = 0.05)
 mean(Pituitarydb[Pituitarydb$Obesity != 1,]$PostopNalowest, trim = 0.05)
 
 # DVT/PE, multivariate analysis
 dvt_df = cbind(select(Pituitarydb, DVTorPE, HoCHF, Bloodthinners), cushingvector)
-# DI_df$agevector = ifelse(DI_df$agevector > 40, 1, 0)
 log_reg_DI = glm(DVTorPE~., data = dvt_df, family = 'binomial')
 summary(log_reg_DI)
 exp(cbind(OR = coef(log_reg_DI), confint(log_reg_DI)))
 
-######### Biulding machine learning algorithms
+######### Machine Learning 
 ## Train/Test split correcting for class imbalance
 # Developing balanced testing set 
 outcome_pit_df = filter(outcome_df, outcome == 'Yes')
@@ -300,6 +281,7 @@ train_outcome_one = anti_join(outcome_df, test_outcome_one)
 # 3) RandomForest 
 # 4) GLMnet
 #### Train and cross validate models >>>> evaluate using testing set
+model_names = c("NaiveBayes", "SVM", "RandomForest", "LR-EN") 
 # Naive Bayes
 myControl = trainControl(method = "cv", number = 10, classProbs = TRUE, verboseIter = TRUE) 
 pit_nb = train(outcome~., data = train_outcome_one, trControl = myControl, method="nb")
@@ -341,14 +323,15 @@ accuracy_function = function(model_list, dataframe){
   return(accs)
 }
 test_accuracy_values = accuracy_function(model_list, test_outcome_one)
+names(test_accuracy_values) = model_names
 
-#######Mcnemar tests for statistically significantly different models
+#######Mcnemar tests for model comparison
 prediction_df = data.frame(pit_nb_pred, pit_svm_pred, pit_rf_pred, pit_glm_pred)
 pvalue_rescaling = function(x) {
   if (x > 0.05 | is.na(x)) {
     return(0)
   } else {
-    return(log(1/x))
+    return(log(1/x)) # rescaling p-values to improve color scale for heatmap
   }
 }
 
@@ -385,6 +368,7 @@ corrplot(corr_matrix, method="pie", type="upper", order="hclust")
 ####### Generate prediction probablities and ROC curves ########
 # ROC for training data
 roc_function = function(model_list, dataframe) {
+  # Function accepts a list of models and data frame to predict on, returns a vector of ROC-AUC values
   rocs = c()
   for (model in model_list) {
     predictions = predict(model, dataframe, type = "prob")[,2]
@@ -394,24 +378,16 @@ roc_function = function(model_list, dataframe) {
   return(rocs)
 }
 
-roc_function_aucs = function(model_list, dataframe) {
-  rocs = c()
-  for (model in model_list) {
-    predictions = predict(model, dataframe, type = "prob")[,2]
-    roc_val = roc(dataframe[, ncol(dataframe)], predictions)
-    rocs = c(rocs, roc_val) 
-    } 
-  return(rocs)
-}
-
 # Train ROC values
 train_rocs_values = roc_function(model_list, train_outcome_one)
+names(train_rocs_values) = model_names
+
 # Train prediction vectors
 pit_nb_pred_probs = predict(pit_nb, train_outcome_one, type = "prob")[,2]
 pit_enet_pred_probs = predict(pit_glm, train_outcome_one, type = "prob")[,2]
 pit_rf_pred_probs = predict(pit_rf, train_outcome_one, type = "prob")[,2]
 pit_svm_pred_probs = predict(pit_svm, train_outcome_one, type = "prob")[,2]
-# ROC plots for training set
+# ROC curves for TRAINING set
 ROC_df = data_frame(pit_nb_pred_probs, pit_enet_pred_probs, pit_rf_pred_probs, pit_svm_pred_probs, train_outcome_one$outcome)
 ROC_df = rename(ROC_df, outcome = `train_outcome_one$outcome`)
 ROC_gathered = gather(ROC_df, key = "model", value = "probability", -outcome)
@@ -419,15 +395,15 @@ ggplot(ROC_gathered, aes(d = outcome, m = probability, color = model))+
   geom_roc(n.cuts = 0) +
   style_roc()
 
-###### ROC for testing data
-# Test ROC values
+###### ROC for TESTING data
+# Test ROC-AUC values
 test_rocs_values = roc_function(model_list, test_outcome_one)
-# Test ROC values
+# Test ROC curves
 pit_nb_pred_probs = predict(pit_nb, test_outcome_one, type = "prob")[,2]
 pit_enet_pred_probs = predict(pit_glm, test_outcome_one, type = "prob")[,2]
 pit_rf_pred_probs = predict(pit_rf, test_outcome_one, type = "prob")[,2]
 pit_svm_pred_probs = predict(pit_svm, test_outcome_one, type = "prob")[,2]
-# ROC plots for test set
+# ROC curves for test set
 ROC_df = data_frame(pit_nb_pred_probs, pit_svm_pred_probs, pit_rf_pred_probs, pit_enet_pred_probs, test_outcome_one$outcome)
 ROC_df = rename(ROC_df, outcome = `test_outcome_one$outcome`)
 ROC_gathered = gather(ROC_df, key = "model", value = "probability", -outcome)
@@ -438,10 +414,11 @@ ggplot(ROC_gathered, aes(d = outcome, m = probability, color = model)) +
 ########### Precision recall curves/AUC
 prauc_df = data_frame(pit_nb_pred_probs, pit_svm_pred_probs, pit_rf_pred_probs, pit_enet_pred_probs)
 prauc_function = function(prediction_probs_df) {
+  # Function accepts a list of models and data frame to predict on, returns a vector of PR-AUC values
   praucs = c()
   for (preds in prediction_probs_df) {
-    scores <- data.frame(preds, test_outcome_one$outcome)
-    pr <- pr.curve(scores.class0=scores[scores$test_outcome_one.outcome=="Yes",]$preds,
+    scores = data.frame(preds, test_outcome_one$outcome)
+    pr = pr.curve(scores.class0=scores[scores$test_outcome_one.outcome=="Yes",]$preds,
              scores.class1=scores[scores$test_outcome_one.outcome=="No",]$preds, curve = FALSE)
     praucs = c(praucs, pr$auc.integral)
   }
