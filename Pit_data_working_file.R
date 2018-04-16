@@ -426,14 +426,13 @@ prauc_function = function(prediction_probs_df) {
 }
 test_prauc_value = prauc_function(prauc_df)
 
-# Precision-recall curves
-eval = evalmod(scores = pit_enet_pred_probs, labels = test_outcome_one$outcome)
-autoplot(eval1)
+# ROC and Precision-recall curves for figures
+# eval = evalmod(scores = pit_enet_pred_probs, labels = test_outcome_one$outcome)
+# autoplot(eval1)
 # Use a list with multiple score vectors and a list with a single label vector
 predslist = list(pit_nb_pred_probs, pit_enet_pred_probs, pit_rf_pred_probs, pit_svm_pred_probs)
 # Explicitly specify model names
 msmdat2 = mmdata(predslist, test_outcome_one$outcome, modnames = c("NaiveBayes", "ElasticNet", "RandomForest", "SupportVectorMachines"))
-# Use a sample dataset created by the create_sim_samples function
 mscurves = evalmod(msmdat2)
 autoplot(mscurves)
 # autoplot(mscurves, "PRC")
