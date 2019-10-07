@@ -7,7 +7,7 @@ Code and results are still a work in progress.
 
 
 <p align="center">
-  <b>Attention Mechanism explained</b><br><br>
-  <img src="images/Figure 5 probabilities-01.png" width="500">
+  <b>Pituitary_ML prediction results</b><br><br>
+  <img src="images/Figure 5 probabilities-01.png" width="750">
 </p>
 
