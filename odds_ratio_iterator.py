@@ -5,13 +5,14 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from scipy.stats import fisher_exact
+from sklearn.preprocessing import minmax_scale
 
 os.chdir("/Users/toddhollon/Desktop/PituitaryResearch")
 
 # Import raw data
 pit_df = pd.read_excel("Pituitary_outcomes_for_python.xlsx", header = 0)
 
-# Data cleaning and DataFrame building
+##### Data cleaning and DataFrame building ######
 pit_df_filter = pit_df.loc[:,[
     # Demographics
     'TumorType',
@@ -57,6 +58,7 @@ def age_function(x):
     return(year)
 pit_df_filter.AgeatSurgery = pit_df_filter.AgeatSurgery.apply(age_function).astype(float)
 
+# discretize the age variable to greater or less than 40
 def age_binary(x):
     if x > 40:
         return 1
@@ -101,8 +103,7 @@ def recode_race(race):
         return 3
 pit_df_filter.Race = pit_df_filter.Race.apply(recode_race)
 
-#########
-from sklearn.preprocessing import minmax_scale
+# Rescale the continous values to be between 0 and 1
 col_list = ['BMI', 'AgeatSurgery', 'PostopNalowest', 'PostopNahighest']
 for i in col_list:
     pit_df_filter[i] = minmax_scale(pit_df_filter.loc[:,[i]])
@@ -171,7 +172,6 @@ class MidpointNormalize(colors.Normalize):
 	Normalise the colorbar so that diverging bars work there way either side from a prescribed midpoint value)
 
 	# http://chris35wills.github.io/matplotlib_diverging_colorbar/
-    # this is a brilliant piece of code!!! not mine unfortunately
 
 	e.g. im=ax1.imshow(array, norm=MidpointNormalize(midpoint=0.,vmin=-100, vmax=100))
 	"""
